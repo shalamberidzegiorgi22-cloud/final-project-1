@@ -1,31 +1,132 @@
 import { useState } from 'react';
-import { Shield, CheckCircle2, Lock, UserCheck, ArrowRight, AlertCircle } from 'lucide-react';
+import { Shield, CheckCircle2, Lock, UserCheck, ArrowRight } from 'lucide-react';
 import { useTheme } from '../../context/useTheme';
 import { useLanguage } from '../../context/useLanguage';
+import { useAuth } from '../../context/useAuth';
 import { PruffoLogo } from '../../components/PruffoLogo';
+import GermanyMap from '../../components/GermanyMap';
 import './contract.css';
 
-export default function Contract({ activeTab, onTabChange }) {
+const minimumDateTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000)
+  .toISOString()
+  .slice(0, 16);
+
+export default function Contract({
+  activeTab,
+  onTabChange,
+  onBuyerServiceRequest,
+  onInspectorRegister,
+  onCancelInspectorRegistration,
+  onViewRegisteredInspector,
+  registeredInspector,
+}) {
   const { isDark } = useTheme();
   const { t } = useLanguage();
+  const { requireAuth } = useAuth();
   const copy = t.contract;
   
   // Buyer state
   const [selectedCity, setSelectedCity] = useState('Berlin');
   const [sellerUrl, setSellerUrl] = useState('');
+  const [serviceDateTime, setServiceDateTime] = useState('');
   const [isPaid, setIsPaid] = useState(false);
 
   // Inspector state
   const [inspectorForm, setInspectorForm] = useState({
-    fullName: '',
+    firstName: '',
+    lastName: '',
     qualification: 'Zweiradmechaniker-Meister (HWK)',
+    specialization: '',
     certNumber: '',
     city: 'Berlin',
-    experience: ''
+    experience: '',
+    availability: '',
+    coords: null,
   });
-  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(Boolean(registeredInspector));
+  const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
+  const [registrationError, setRegistrationError] = useState('');
 
-  const cities = ['Berlin', 'Munich', 'Hamburg', 'Frankfurt', 'Cologne'];
+  async function submitInspectorRegistration(event) {
+    event.preventDefault();
+    if (isSubmittingRegistration || isSubmitted) return;
+    const formData = new FormData(event.currentTarget);
+    const firstName = String(formData.get('firstName') ?? '').trim();
+    const lastName = String(formData.get('lastName') ?? '').trim();
+    const city = String(formData.get('city') ?? '').trim();
+    const specialization = String(formData.get('specialization') ?? '').trim();
+    const availability = String(formData.get('availability') ?? '');
+    const coords = inspectorForm.coords;
+    const missingFields = [
+      [firstName, copy.firstName],
+      [lastName, copy.lastName],
+      [city, copy.primaryCity],
+      [specialization, copy.specialization],
+      [availability, copy.availabilityDateTime],
+      [
+        Number.isFinite(coords?.top) && Number.isFinite(coords?.left),
+        copy.pickLocation,
+      ],
+    ]
+      .filter(([value]) => !value)
+      .map(([, label]) => label);
+
+    if (missingFields.length > 0) {
+      setRegistrationError(`${copy.registrationRequired} ${missingFields.join(', ')}`);
+      return;
+    }
+    const availabilityTimestamp = new Date(availability).getTime();
+    if (!Number.isFinite(availabilityTimestamp) || availabilityTimestamp <= Date.now()) {
+      setRegistrationError(copy.registrationDateRequired);
+      return;
+    }
+    if (!onInspectorRegister) {
+      setRegistrationError(copy.registrationUnavailable);
+      return;
+    }
+
+    const inspector = {
+      id: `inspector-${Date.now()}`,
+      name: `${firstName} ${lastName}`,
+      city,
+      specialization,
+      qualification: String(formData.get('qualification') ?? ''),
+      certNumber: String(formData.get('certNumber') ?? '').trim(),
+      availability,
+      rating: 0,
+      reviewCount: 0,
+      reviews: [],
+      coords,
+    };
+    setIsSubmittingRegistration(true);
+    try {
+      await onInspectorRegister(inspector);
+      setRegistrationError('');
+      setIsSubmitted(true);
+    } catch {
+      setRegistrationError(copy.registrationFailed);
+    } finally {
+      setIsSubmittingRegistration(false);
+    }
+  }
+
+  function cancelInspectorRegistration() {
+    if (!registeredInspector) return;
+    onCancelInspectorRegistration?.(registeredInspector.id);
+    setIsSubmitted(false);
+    setInspectorForm({
+      firstName: '',
+      lastName: '',
+      qualification: 'Zweiradmechaniker-Meister (HWK)',
+      specialization: '',
+      certNumber: '',
+      city: 'Berlin',
+      experience: '',
+      availability: '',
+      coords: null,
+    });
+    setRegistrationError('');
+  }
 
   return (
     <div className={`min-h-screen w-full max-w-full overflow-x-clip p-4 transition-colors duration-300 sm:p-6 lg:p-8 ${isDark ? 'bg-[#0a0a0a] text-zinc-100' : 'bg-[#f8f9fa] text-zinc-900'}`}>
@@ -70,24 +171,42 @@ export default function Contract({ activeTab, onTabChange }) {
 
                 <div className="space-y-4 pt-4">
                   <div>
-                    <label className="block text-xs font-semibold mb-2 uppercase opacity-80">{copy.cityLabel}</label>
-                    <select 
-                      value={selectedCity} 
-                      onChange={(e) => setSelectedCity(e.target.value)}
-                      className="w-full p-3.5 rounded-xl border border-amber-500/50 bg-slate-900 text-sm text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
-                    >
-                      {cities.map((city, idx) => <option className="bg-slate-900 text-amber-400" key={idx} value={city}>{city}</option>)}
-                    </select>
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="buyer-service-location">{copy.cityLabel}</label>
+                    <input
+                      className="blue-glass-card w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="buyer-service-location"
+                      onChange={(event) => setSelectedCity(event.target.value)}
+                      placeholder={copy.locationPlaceholder}
+                      required
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      type="text"
+                      value={selectedCity}
+                    />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold mb-2 uppercase opacity-80">{copy.sellerLabel}</label>
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]">{copy.sellerLabel}</label>
                     <input 
                       type="text" 
                       placeholder="https://www.kleinanzeigen.de/s-anzeige/..." 
                       value={sellerUrl} 
                       onChange={(e) => setSellerUrl(e.target.value)}
-                      className="w-full p-3.5 rounded-xl border border-amber-500/50 bg-slate-900 text-sm text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-amber-400/50 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      className="w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="service-date-time">{copy.serviceDateTime}</label>
+                    <input
+                      className="w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm accent-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition [color-scheme:dark] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="service-date-time"
+                      min={minimumDateTime}
+                      onChange={(e) => setServiceDateTime(e.target.value)}
+                      required
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      type="datetime-local"
+                      value={serviceDateTime}
                     />
                   </div>
                 </div>
@@ -98,8 +217,21 @@ export default function Contract({ activeTab, onTabChange }) {
                 </div>
 
                 <button 
-                  onClick={() => setIsPaid(true)} 
-                  className="w-full py-4 bg-gradient-to-r from-[#d4af37] to-amber-500 text-black font-bold rounded-xl shadow-lg hover:from-amber-400 hover:to-amber-600 transition-all flex items-center justify-center gap-2"
+                  disabled={!serviceDateTime}
+                  onClick={() => {
+                    if (serviceDateTime && new Date(serviceDateTime).getTime() > Date.now()) {
+                      requireAuth(() => {
+                        onBuyerServiceRequest?.({
+                          city: selectedCity,
+                          description: sellerUrl,
+                          requestedAt: serviceDateTime,
+                          status: 'Requested',
+                        });
+                        setIsPaid(true);
+                      });
+                    }
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-amber-500 py-4 font-bold text-black shadow-lg transition-all hover:from-amber-400 hover:to-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>{copy.confirmOrder}</span>
                   <ArrowRight size={18} />
@@ -126,67 +258,197 @@ export default function Contract({ activeTab, onTabChange }) {
                   <p className="text-sm opacity-70">{copy.inspectorDescription}</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                <form
+                  className="space-y-6"
+                  onSubmit={submitInspectorRegistration}
+                >
+                <div className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-semibold mb-2 uppercase opacity-80">{copy.fullName}</label>
-                    <input 
-                      type="text" 
-                      placeholder={copy.namePlaceholder}
-                      value={inspectorForm.fullName}
-                      onChange={(e) => setInspectorForm({...inspectorForm, fullName: e.target.value})}
-                      className="w-full p-3.5 rounded-xl border border-amber-500/50 bg-slate-900 text-sm text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-amber-400/50 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="inspector-first-name">{copy.firstName}</label>
+                    <input
+                      className="w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="inspector-first-name"
+                      name="firstName"
+                      onChange={(e) => {
+                        setInspectorForm((current) => ({ ...current, firstName: e.target.value }));
+                        setRegistrationError('');
+                      }}
+                      placeholder={copy.firstName}
+                      required
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      type="text"
+                      value={inspectorForm.firstName}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold mb-2 uppercase opacity-80">{copy.primaryCity}</label>
-                    <select 
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="inspector-last-name">{copy.lastName}</label>
+                    <input
+                      className="w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="inspector-last-name"
+                      name="lastName"
+                      onChange={(e) => {
+                        setInspectorForm((current) => ({ ...current, lastName: e.target.value }));
+                        setRegistrationError('');
+                      }}
+                      placeholder={copy.lastName}
+                      required
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      type="text"
+                      value={inspectorForm.lastName}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="inspector-city">{copy.primaryCity}</label>
+                    <input
+                      className="blue-glass-card w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="inspector-city"
+                      name="city"
+                      onChange={(event) => setInspectorForm((current) => ({ ...current, city: event.target.value }))}
+                      placeholder={copy.locationPlaceholder}
+                      required
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      type="text"
                       value={inspectorForm.city}
-                      onChange={(e) => setInspectorForm({...inspectorForm, city: e.target.value})}
-                      className="w-full p-3.5 rounded-xl border border-amber-500/50 bg-slate-900 text-sm text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
-                    >
-                      {cities.map((city, idx) => <option className="bg-slate-900 text-amber-400" key={idx} value={city}>{city}</option>)}
-                    </select>
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="inspector-specialization">{copy.specialization}</label>
+                    <input
+                      className="w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="inspector-specialization"
+                      name="specialization"
+                      onChange={(e) => {
+                        setInspectorForm((current) => ({ ...current, specialization: e.target.value }));
+                        setRegistrationError('');
+                      }}
+                      placeholder={copy.specializationPlaceholder}
+                      required
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      type="text"
+                      value={inspectorForm.specialization}
+                    />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold mb-2 uppercase opacity-80">{copy.qualification}</label>
-                    <select 
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="inspector-qualification">{copy.qualification}</label>
+                    <select
+                      className="w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition [color-scheme:dark] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="inspector-qualification"
+                      name="qualification"
+                      onChange={(e) => setInspectorForm({ ...inspectorForm, qualification: e.target.value })}
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
                       value={inspectorForm.qualification}
-                      onChange={(e) => setInspectorForm({...inspectorForm, qualification: e.target.value})}
-                      className="w-full p-3.5 rounded-xl border border-amber-500/50 bg-slate-900 text-sm text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
                     >
-                      <option className="bg-slate-900 text-amber-400">Zweiradmechaniker-Meister (HWK)</option>
-                      <option className="bg-slate-900 text-amber-400">Diplom-Ingenieur (Fahrzeugtechnik)</option>
-                      <option className="bg-slate-900 text-amber-400">OEM Certified E-Bike Specialist (Bosch/Shimano)</option>
+                      <option className="bg-slate-900 text-amber-300">Zweiradmechaniker-Meister (HWK)</option>
+                      <option className="bg-slate-900 text-amber-300">Diplom-Ingenieur (Fahrzeugtechnik)</option>
+                      <option className="bg-slate-900 text-amber-300">OEM Certified E-Bike Specialist (Bosch/Shimano)</option>
                     </select>
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold mb-2 uppercase opacity-80">{copy.certificate}</label>
-                    <input 
-                      type="text" 
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="inspector-certificate">{copy.certificate}</label>
+                    <input
+                      className="w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="inspector-certificate"
+                      name="certNumber"
+                      onChange={(e) => setInspectorForm({ ...inspectorForm, certNumber: e.target.value })}
                       placeholder={copy.certificatePlaceholder}
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      type="text"
                       value={inspectorForm.certNumber}
-                      onChange={(e) => setInspectorForm({...inspectorForm, certNumber: e.target.value})}
-                      className="w-full p-3.5 rounded-xl border border-amber-500/50 bg-slate-900 text-sm text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition placeholder:text-amber-400/50 focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="inspector-availability">{copy.availabilityDateTime}</label>
+                    <input
+                      className="w-full !rounded-xl border border-amber-500/50 p-3.5 text-sm accent-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.12)] outline-none transition [color-scheme:dark] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                      id="inspector-availability"
+                      name="availability"
+                      min={minimumDateTime}
+                      onChange={(e) => {
+                        setInspectorForm((current) => ({ ...current, availability: e.target.value }));
+                        setRegistrationError('');
+                      }}
+                      required
+                      style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      type="datetime-local"
+                      value={inspectorForm.availability}
                     />
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => setIsSubmitted(true)} 
-                  className="w-full py-4 bg-[#d4af37] text-black font-bold rounded-xl hover:bg-amber-400 transition-all"
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">{copy.pickLocation}</h3>
+                    <p className="mt-1 text-xs opacity-70">{copy.pickLocationHint}</p>
+                    {inspectorForm.coords && (
+                      <p className="mt-2 text-xs font-medium text-blue-700 dark:text-blue-300">
+                        {copy.selectedCoordinates(inspectorForm.coords.top, inspectorForm.coords.left)}
+                      </p>
+                    )}
+                  </div>
+                  <GermanyMap
+                    inspectors={[]}
+                    mapLabel={copy.pickLocation}
+                    onLocationSelect={(coords) => {
+                      setInspectorForm((current) => ({ ...current, coords }));
+                      setRegistrationError('');
+                    }}
+                    selectedCoords={inspectorForm.coords}
+                  />
+                </div>
+
+                <button
+                  className="w-full rounded-xl bg-[#d4af37] py-4 font-bold text-black transition-all hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isSubmittingRegistration}
+                  type="submit"
                 >
                   {copy.submitApplication}
                 </button>
+                {registrationError && (
+                  <p className="text-sm font-medium text-red-600 dark:text-red-300" role="alert">
+                    {registrationError}
+                  </p>
+                )}
+                </form>
               </>
             ) : (
               <div className="text-center py-10 space-y-4">
-                <AlertCircle size={56} className="text-[#d4af37] mx-auto animate-pulse" />
+                <CheckCircle2 size={56} className="text-emerald-500 mx-auto" />
                 <h3 className="text-2xl font-bold">{copy.applicationTitle}</h3>
-                <p className="text-sm opacity-80 max-w-md mx-auto">{copy.applicationDescription(inspectorForm.city)}</p>
-                <button onClick={() => setIsSubmitted(false)} className="px-6 py-2.5 bg-zinc-800 text-xs font-bold rounded-xl hover:bg-zinc-700">{copy.backToForm}</button>
+                <p className="text-sm font-semibold">{registeredInspector?.name ?? `${inspectorForm.firstName} ${inspectorForm.lastName}`.trim()}</p>
+                <p className="text-sm opacity-80 max-w-md mx-auto">
+                  {copy.applicationDescription(registeredInspector?.city ?? inspectorForm.city)}
+                </p>
+                <button
+                  className="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-emerald-600/80 py-4 font-bold text-white"
+                  disabled
+                  type="button"
+                >
+                  {copy.sentLabel}
+                </button>
+                {onViewRegisteredInspector && (
+                  <button
+                    className="rounded-xl bg-zinc-800 px-6 py-2.5 text-xs font-bold hover:bg-zinc-700"
+                    onClick={onViewRegisteredInspector}
+                    type="button"
+                  >
+                    {copy.viewRegisteredInspector}
+                  </button>
+                )}
+                {registeredInspector && onCancelInspectorRegistration && (
+                  <button
+                    className="w-full rounded-xl border border-red-400/40 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-500/10 dark:text-red-300"
+                    onClick={cancelInspectorRegistration}
+                    type="button"
+                  >
+                    {copy.cancelRegistration}
+                  </button>
+                )}
               </div>
             )}
           </div>

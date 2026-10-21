@@ -3,18 +3,37 @@ import { Shield, Bike, ArrowRight, X } from 'lucide-react';
 import ebikeImg from '../../assets/E-Bike.webp';
 import { useTheme } from '../../context/useTheme';
 import { useLanguage } from '../../context/useLanguage';
+import { useAuth } from '../../context/useAuth';
 import { PruffoLogo } from '../../components/PruffoLogo';
+import InspectorMapSearch from '../../components/InspectorMapSearch';
 import './home.css';
 
-export default function Home({ onInspectorClick }) {
+const minimumServiceDateTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000)
+  .toISOString()
+  .slice(0, 16);
+
+export default function Home({
+  onInspectorClick,
+  completedOrders,
+  inspectors,
+  initialSelectedInspectorId,
+  serviceOrders,
+  onBuyerServiceRequest,
+  onInspectorServiceRequest,
+  onInspectorServiceCancel,
+  onInspectorMessage,
+  onInspectorReview,
+}) {
   const { isDark } = useTheme();
   const { t } = useLanguage();
+  const { requireAuth } = useAuth();
   const copy = t.home;
   const [activeModal, setActiveModal] = useState(null);
 
   // Buyer booking states
   const [selectedCity, setSelectedCity] = useState('Berlin');
   const [sellerUrl, setSellerUrl] = useState('');
+  const [serviceDateTime, setServiceDateTime] = useState('');
 
   return (
     <div className="home-luxury-shell min-h-screen w-full max-w-full overflow-x-hidden rounded-none p-0 font-sans text-white">
@@ -76,36 +95,59 @@ export default function Home({ onInspectorClick }) {
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-semibold uppercase opacity-70 mb-2">{copy.location}</label>
-                      <select 
-                        value={selectedCity} 
-                        onChange={(e) => setSelectedCity(e.target.value)}
-                        className={`w-full p-3 rounded-xl border text-sm ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-200' : 'bg-zinc-50 border-zinc-300 text-zinc-800'}`}
-                      >
-                        <option value="Berlin">Berlin</option>
-                        <option value="Munich">Munich</option>
-                        <option value="Hamburg">Hamburg</option>
-                        <option value="Frankfurt">Frankfurt</option>
-                      </select>
+                      <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]">{copy.location}</label>
+                      <input
+                        className="blue-glass-card w-full !rounded-xl border border-amber-500/50 p-3 text-sm outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                        onChange={(event) => setSelectedCity(event.target.value)}
+                        placeholder={copy.locationPlaceholder}
+                        style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                        type="text"
+                        value={selectedCity}
+                      />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase opacity-70 mb-2">{copy.listingUrl}</label>
+                      <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]">{copy.listingUrl}</label>
                       <input 
                         type="url" 
                         placeholder="https://kleinanzeigen.de/..." 
                         value={sellerUrl}
                         onChange={(e) => setSellerUrl(e.target.value)}
-                        className={`w-full p-3 rounded-xl border text-sm ${isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-200' : 'bg-zinc-50 border-zinc-300 text-zinc-800'}`}
+                        className="w-full !rounded-xl border border-amber-500/50 p-3 text-sm outline-none transition placeholder:text-[#facc15] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                        style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase text-[#facc15]" htmlFor="home-service-date-time">{copy.serviceDateTime}</label>
+                      <input
+                        className="w-full !rounded-xl border border-amber-500/50 p-3 text-sm accent-amber-400 outline-none transition [color-scheme:dark] focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                        id="home-service-date-time"
+                        min={minimumServiceDateTime}
+                        onChange={(e) => setServiceDateTime(e.target.value)}
+                        required
+                        style={{ borderRadius: '12px', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#facc15' }}
+                        type="datetime-local"
+                        value={serviceDateTime}
                       />
                     </div>
 
                     <button 
                       onClick={() => {
-                        alert(copy.requestSubmitted);
-                        setActiveModal(null);
+                        if (!serviceDateTime || new Date(serviceDateTime).getTime() <= Date.now()) return;
+                        requireAuth(() => {
+                          onBuyerServiceRequest?.({
+                            city: selectedCity,
+                            description: sellerUrl,
+                            requestedAt: serviceDateTime,
+                            status: 'Requested',
+                          });
+                          alert(copy.requestSubmitted);
+                          setActiveModal(null);
+                        });
                       }}
-                      className="w-full py-4 bg-[#d4af37] text-black font-bold rounded-xl hover:opacity-90 transition-all mt-4"
+                      disabled={!serviceDateTime}
+                      className="mt-4 w-full rounded-xl bg-[#d4af37] py-4 font-bold text-black transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {copy.confirmRequest}
                     </button>
@@ -144,6 +186,17 @@ export default function Home({ onInspectorClick }) {
         </div>
 
       </main>
+
+      <InspectorMapSearch
+        inspectors={inspectors}
+        initialSelectedInspectorId={initialSelectedInspectorId}
+        completedOrders={completedOrders}
+        serviceOrders={serviceOrders}
+        onMessageSend={onInspectorMessage}
+        onReviewSubmit={onInspectorReview}
+        onServiceRequest={onInspectorServiceRequest}
+        onServiceRequestCancel={onInspectorServiceCancel}
+      />
 
     </div>
   );

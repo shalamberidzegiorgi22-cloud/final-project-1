@@ -8,26 +8,23 @@ export default function Contact() {
   const { t } = useLanguage();
   const copy = t.contact;
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
-  const [isPrepared, setIsPrepared] = useState(false);
+  const [isSent, setIsSent] = useState(false);
 
   function handleSubmit(event) {
     event.preventDefault();
-
-    const body = `${copy.name}: ${form.name}\n${copy.email}: ${form.email}\n\n${form.message}`;
-    const mailto = `mailto:${copy.supportAddress}?subject=${encodeURIComponent(form.subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
-    setIsPrepared(true);
+    setForm({ name: '', email: '', subject: '', message: '' });
+    setIsSent(true);
   }
 
   function updateField(event) {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
-    setIsPrepared(false);
+    setIsSent(false);
   }
 
   const infoCards = [
     { icon: MapPin, title: copy.office, details: copy.officeDetails },
-    { icon: Mail, title: copy.supportEmail, details: copy.supportAddress, href: `mailto:${copy.supportAddress}` },
+    { icon: Mail, title: copy.supportEmail, details: copy.supportAddress },
     { icon: Phone, title: copy.phone, details: copy.phoneDetails },
   ];
 
@@ -107,7 +104,6 @@ export default function Contact() {
               />
             </div>
 
-            <p className="text-xs leading-relaxed text-blue-100/75">{copy.sendNote}</p>
             <button
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#d4af37] to-amber-500 px-6 py-3.5 font-bold text-slate-950 transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-950 sm:w-auto"
               type="submit"
@@ -115,11 +111,11 @@ export default function Contact() {
               <span>{copy.send}</span>
               <Send aria-hidden="true" size={17} />
             </button>
-            {isPrepared && <p aria-live="polite" className="text-sm text-emerald-200">{copy.prepared}</p>}
+            {isSent && <p aria-live="polite" className="text-sm font-semibold text-emerald-300">{copy.success}</p>}
           </form>
 
           <aside aria-label={copy.brand} className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-3">
-            {infoCards.map(({ icon: Icon, title, details, href }) => {
+            {infoCards.map(({ icon: Icon, title, details }) => {
               const content = (
                 <>
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-sky-200/30 bg-sky-300/10 text-sky-100">
@@ -132,11 +128,7 @@ export default function Contact() {
                 </>
               );
 
-              return href ? (
-                <a className="blue-glass-card flex w-full min-w-0 items-start gap-4 rounded-2xl p-6 text-left transition hover:border-sky-200/50" href={href} key={title}>
-                  {content}
-                </a>
-              ) : (
+              return (
                 <div className="blue-glass-card flex w-full min-w-0 items-start gap-4 rounded-2xl p-6 text-left" key={title}>
                   {content}
                 </div>
