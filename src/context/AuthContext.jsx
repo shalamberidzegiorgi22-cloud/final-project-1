@@ -21,8 +21,14 @@ const authCopy = {
     required: 'To request a service, please register!',
     register: 'Register',
     title: 'Create your account',
-    name: 'Full name',
+    firstName: 'First name',
+    firstNamePlaceholder: 'George',
+    lastName: 'Last name',
+    lastNamePlaceholder: 'Smith',
     email: 'Email address',
+    emailPlaceholder: '@gmail.com',
+    password: 'Password',
+    passwordPlaceholder: '*****',
     submit: 'Complete registration',
     close: 'Close',
     demo: 'Registration is currently a local demo and is not connected to an account service.',
@@ -31,8 +37,14 @@ const authCopy = {
     required: 'Um einen Service anzufragen, registrieren Sie sich bitte!',
     register: 'Registrieren',
     title: 'Konto erstellen',
-    name: 'Vollständiger Name',
+    firstName: 'Vorname',
+    firstNamePlaceholder: 'Georg',
+    lastName: 'Nachname',
+    lastNamePlaceholder: 'Schmidt',
     email: 'E-Mail-Adresse',
+    emailPlaceholder: '@gmail.com',
+    password: 'Passwort',
+    passwordPlaceholder: '*****',
     submit: 'Registrierung abschließen',
     close: 'Schließen',
     demo: 'Die Registrierung ist derzeit eine lokale Demo und nicht mit einem Kontodienst verbunden.',
@@ -41,8 +53,14 @@ const authCopy = {
     required: 'მომსახურების მოსითხოვად და ოსტატთან დაკავშირებამდე გთხოვთ გაიაროთ რეგისტრაცია!',
     register: 'რეგისტრაციის',
     title: 'ანგარიშის შექმნა',
-    name: 'სრული სახელი',
-    email: 'ელფოსტის მისამართი',
+    firstName: 'სახელი',
+    firstNamePlaceholder: 'სახელი',
+    lastName: 'გვარი',
+    lastNamePlaceholder: 'გვარი',
+    email: 'ელფოსტა (Email)',
+    emailPlaceholder: '@gmail.com',
+    password: 'პაროლი',
+    passwordPlaceholder: '*****',
     submit: 'რეგისტრაციის დასრულება',
     close: 'დახურვა',
     demo: 'რეგისტრაცია ამ ეტაპზე მხოლოდ ლოკალური დემოა და ანგარიშების სერვისთან დაკავშირებული არ არის.',
@@ -50,8 +68,10 @@ const authCopy = {
 };
 
 function RegistrationDialog({ copy, mode, onClose, onRegister }) {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   if (!mode) return null;
 
@@ -87,18 +107,31 @@ function RegistrationDialog({ copy, mode, onClose, onRegister }) {
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            onRegister({ name: name.trim(), email: email.trim() });
+            onRegister({ name: `${firstName.trim()} ${lastName.trim()}`, email: email.trim() });
           }}
         >
           <label className="block space-y-2 text-xs font-semibold">
-            <span>{copy.name}</span>
+            <span>{copy.firstName}</span>
             <input
-              autoComplete="name"
+              autoComplete="given-name"
               className="w-full rounded-xl border border-blue-300/60 bg-white/60 p-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-blue-200/20 dark:bg-zinc-950/40"
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => setFirstName(event.target.value)}
+              placeholder={copy.firstNamePlaceholder}
               required
               type="text"
-              value={name}
+              value={firstName}
+            />
+          </label>
+          <label className="block space-y-2 text-xs font-semibold">
+            <span>{copy.lastName}</span>
+            <input
+              autoComplete="family-name"
+              className="w-full rounded-xl border border-blue-300/60 bg-white/60 p-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-blue-200/20 dark:bg-zinc-950/40"
+              onChange={(event) => setLastName(event.target.value)}
+              placeholder={copy.lastNamePlaceholder}
+              required
+              type="text"
+              value={lastName}
             />
           </label>
           <label className="block space-y-2 text-xs font-semibold">
@@ -107,9 +140,22 @@ function RegistrationDialog({ copy, mode, onClose, onRegister }) {
               autoComplete="email"
               className="w-full rounded-xl border border-blue-300/60 bg-white/60 p-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-blue-200/20 dark:bg-zinc-950/40"
               onChange={(event) => setEmail(event.target.value)}
+              placeholder={copy.emailPlaceholder}
               required
               type="email"
               value={email}
+            />
+          </label>
+          <label className="block space-y-2 text-xs font-semibold">
+            <span>{copy.password}</span>
+            <input
+              autoComplete="new-password"
+              className="w-full rounded-xl border border-blue-300/60 bg-white/60 p-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-blue-200/20 dark:bg-zinc-950/40"
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={copy.passwordPlaceholder}
+              required
+              type="password"
+              value={password}
             />
           </label>
           <button
@@ -175,8 +221,15 @@ export function AuthProvider({ children }) {
   }, [authSession]);
 
   const value = useMemo(
-    () => ({ isLoggedIn, isRegistered, user, login, requireAuth }),
-    [isLoggedIn, isRegistered, user, login, requireAuth],
+    () => ({
+      isLoggedIn,
+      isRegistered,
+      user,
+      login,
+      register: completeRegistration,
+      requireAuth,
+    }),
+    [isLoggedIn, isRegistered, user, login, completeRegistration, requireAuth],
   );
 
   return (

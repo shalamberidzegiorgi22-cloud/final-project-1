@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Search, Star, Wrench, X } from 'lucide-react';
+import { Check, LoaderCircle, Search, Star, Wrench, X } from 'lucide-react';
 import { useLanguage } from '../context/useLanguage';
 import { useTheme } from '../context/useTheme';
 import { useAuth } from '../context/useAuth';
 import { DEMO_INSPECTORS } from '../data/demoInspectors';
+import { readLocalStorage, writeLocalStorage } from '../utils/localStorage';
 import GermanyMap from './GermanyMap';
+
+const SPECIALIST_BOOKINGS_STORAGE_KEY = 'pirro-specialist-bookings';
 
 const minimumServiceDateTime = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000)
   .toISOString()
@@ -21,8 +24,23 @@ const labels = {
     resultCount: (count) => `${count} ${count === 1 ? 'expert' : 'experts'} found`,
     mapTitle: 'Experts across Germany',
     demo: 'Demo profiles',
-    allExperts: 'All experts',
+    activeCalls: 'Active Calls',
     topExperts: 'Top experts',
+    location: 'Client location',
+    serviceRequired: 'Service Required',
+    image: 'Image',
+    status: 'Status',
+    action: 'Action',
+    accept: 'Accept',
+    accepted: 'Accepted',
+    emptyCalls: 'No active calls yet.',
+    holdingStatus: (amount) => `Holding (€${amount})`,
+    prePurchaseButton: 'Pre-purchase bicycle inspection — €100',
+    roadsideButton: 'Roadside help and diagnostics — €150',
+    waitingConfirmation: 'Waiting for confirmation...',
+    confirmedPayment: (amount) => `€${amount} has been reserved and will be transferred to the expert after the service is completed.`,
+    requestedService: 'Requested service:',
+    pendingStatus: 'Requested',
     emptyTitle: 'No experts found',
     emptyDescription: 'Try another name, city, or specialization.',
     topRated: 'Top Rated',
@@ -35,9 +53,7 @@ const labels = {
     reviewRequired: 'Choose a star rating and enter a comment.',
     reviews: (count) => `${count} ${count === 1 ? 'review' : 'reviews'}`,
     viewProfile: 'View profile',
-    callExpert: 'Call / Connect',
-    sendMessage: 'Send message',
-    messagePlaceholder: 'Write a message to this expert...',
+    messagePlaceholder: 'Pre-purchase inspection and diagnostics for a used mechanical bicycle',
     connectionSent: 'Your service request was sent to',
     messageSent: 'Your message was sent to',
     sent: 'Sent',
@@ -47,10 +63,13 @@ const labels = {
     reviewLocked: 'Reviews are available after a completed service.',
     noReviews: 'No reviews yet.',
     serviceDateTime: 'Preferred service date and time',
+    serviceLocation: 'Your city',
+    uploadImage: 'Upload a bicycle or suspicious-part photo',
     requestHistory: 'Your service requests',
     appointment: 'Appointment',
     dateRequired: 'Choose a future service date and time before sending.',
     messageRequired: 'Write a message before sending the request.',
+    locationRequired: 'Enter your city before sending the request.',
     requestFailed: 'The request could not be sent. Please try again.',
     sentLabel: 'Sent ✔️',
     cancelRequest: 'Cancel request',
@@ -65,8 +84,23 @@ const labels = {
     resultCount: (count) => `${count} ${count === 1 ? 'Experte gefunden' : 'Experten gefunden'}`,
     mapTitle: 'Experten in Deutschland',
     demo: 'Beispielprofile',
-    allExperts: 'Alle Experten',
+    activeCalls: 'Aktive Aufträge',
     topExperts: 'Top-Experten',
+    location: 'Kundenstandort',
+    serviceRequired: 'Benötigte Leistung',
+    image: 'Bild',
+    status: 'Status',
+    action: 'Aktion',
+    accept: 'Annehmen',
+    accepted: 'Angenommen',
+    emptyCalls: 'Noch keine aktiven Aufträge.',
+    holdingStatus: (amount) => `In Verwahrung (€${amount})`,
+    prePurchaseButton: 'Fahrradprüfung vor dem Kauf — €100',
+    roadsideButton: 'Pannenhilfe und Diagnose — €150',
+    waitingConfirmation: 'Warten auf Bestätigung...',
+    confirmedPayment: (amount) => `€${amount} wurden reserviert und werden nach Abschluss des Service an den Experten überwiesen.`,
+    requestedService: 'Angefragter Service:',
+    pendingStatus: 'Angefragt',
     emptyTitle: 'Keine Experten gefunden',
     emptyDescription: 'Versuchen Sie einen anderen Namen, eine Stadt oder ein Fachgebiet.',
     topRated: 'Top bewertet',
@@ -79,9 +113,7 @@ const labels = {
     reviewRequired: 'Wählen Sie Sterne und schreiben Sie einen Kommentar.',
     reviews: (count) => `${count} ${count === 1 ? 'Bewertung' : 'Bewertungen'}`,
     viewProfile: 'Profil ansehen',
-    callExpert: 'Anrufen / Kontaktieren',
-    sendMessage: 'Nachricht senden',
-    messagePlaceholder: 'Schreiben Sie eine Nachricht...',
+    messagePlaceholder: 'Prüfung und Diagnose eines gebrauchten mechanischen Fahrrads vor dem Kauf',
     connectionSent: 'Ihre Serviceanfrage wurde gesendet an',
     messageSent: 'Ihre Nachricht wurde gesendet an',
     sent: 'Gesendet',
@@ -91,10 +123,13 @@ const labels = {
     reviewLocked: 'Bewertungen sind nach Abschluss eines Services verfügbar.',
     noReviews: 'Noch keine Bewertungen.',
     serviceDateTime: 'Gewünschter Service-Termin',
+    serviceLocation: 'Ihre Stadt',
+    uploadImage: 'Foto des Fahrrads oder des verdächtigen Teils hochladen',
     requestHistory: 'Ihre Serviceanfragen',
     appointment: 'Termin',
     dateRequired: 'Bitte wählen Sie vor dem Senden einen zukünftigen Service-Termin.',
     messageRequired: 'Schreiben Sie eine Nachricht, bevor Sie die Anfrage senden.',
+    locationRequired: 'Geben Sie vor dem Senden Ihre Stadt ein.',
     requestFailed: 'Die Anfrage konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
     sentLabel: 'Gesendet ✔️',
     cancelRequest: 'Anfrage stornieren',
@@ -109,8 +144,23 @@ const labels = {
     resultCount: (count) => `${count} ${count === 1 ? 'ოსტატი მოიძებნა' : 'ოსტატი მოიძებნა'}`,
     mapTitle: 'ოსტატები გერმანიაში',
     demo: 'სადემო პროფილები',
-    allExperts: 'ყველა მოხელე',
+    activeCalls: 'აქტიური გამოძახებები',
     topExperts: 'რჩეული / ტოპ მოხელეები',
+    location: 'კლიენტის მისამართი',
+    serviceRequired: 'მომსახურება',
+    image: 'სურათი',
+    status: 'სტატუსი',
+    action: 'მოქმედება',
+    accept: 'მიღება',
+    accepted: 'მიღებულია',
+    emptyCalls: 'აქტიური გამოძახებები ჯერ არ არის.',
+    holdingStatus: (amount) => `ჰოლდინგში (€${amount})`,
+    prePurchaseButton: 'ველოსიპედის ყიდვამდე შემოწმება — €100',
+    roadsideButton: 'გზაში დახმარება და დიაგნოსტიკა — €150',
+    waitingConfirmation: 'დაელოდეთ დადასტურებას...',
+    confirmedPayment: (amount) => `თანხა (€${amount}) წარმატებით დაიბლოკა ჰოლდინგში. ის გადაირიცხება ოსტატის ანგარიშზე მხოლოდ სამუშაოს დასრულების შემდეგ.`,
+    requestedService: 'გაგზავნილი მომსახურება:',
+    pendingStatus: 'მოთხოვნილია',
     emptyTitle: 'ოსტატი ვერ მოიძებნა',
     emptyDescription: 'სცადეთ სხვა სახელი, ქალაქი ან სპეციალიზაცია.',
     topRated: 'ტოპ შეფასება',
@@ -123,9 +173,7 @@ const labels = {
     reviewRequired: 'აირჩიეთ ვარსკვლავი და დატოვეთ კომენტარი.',
     reviews: (count) => `${count} შეფასება`,
     viewProfile: 'პროფილის ნახვა',
-    callExpert: 'გამოძახება / კავშირი',
-    sendMessage: 'მესიჯის გაგზავნა',
-    messagePlaceholder: 'მისწერეთ ოსტატს...',
+    messagePlaceholder: 'მეორადი მექანიკური ველოსიპედის ყიდვამდელი შემოწმება და დიაგნოსტიკა',
     connectionSent: 'მომსახურების მოთხოვნა გაეგზავნა ოსტატს:',
     messageSent: 'მესიჯი გაეგზავნა ოსტატს:',
     sent: 'გაგზავნილია',
@@ -135,10 +183,13 @@ const labels = {
     reviewLocked: 'შეფასება ხელმისაწვდომია მომსახურების დასრულების შემდეგ.',
     noReviews: 'შეფასებები ჯერ არ არის.',
     serviceDateTime: 'მომსახურების სასურველი თარიღი და დრო',
+    serviceLocation: 'თქვენი ქალაქი',
+    uploadImage: 'ატვირთეთ ველოსიპედის ან საეჭვო დეტალის ფოტო',
     requestHistory: 'თქვენი მომსახურების მოთხოვნები',
     appointment: 'შერჩეული დრო',
     dateRequired: 'გაგზავნამდე აირჩიეთ მომსახურების მომავალი თარიღი და დრო.',
     messageRequired: 'მოთხოვნის გაგზავნამდე დაწერეთ მესიჯი.',
+    locationRequired: 'მოთხოვნის გაგზავნამდე ჩაწერეთ თქვენი ქალაქი.',
     requestFailed: 'მოთხოვნა ვერ გაიგზავნა. გთხოვთ, სცადოთ თავიდან.',
     sentLabel: 'გაგზავნილია ✔️',
     cancelRequest: 'მოთხოვნის გაუქმება',
@@ -164,7 +215,6 @@ export default function InspectorMapSearch({
   serviceOrders = [],
   onServiceRequest,
   onServiceRequestCancel,
-  onMessageSend,
   onReviewSubmit,
 }) {
   const { language } = useLanguage();
@@ -172,9 +222,11 @@ export default function InspectorMapSearch({
   const { requireAuth } = useAuth();
   const copy = labels[language] ?? labels.EN;
   const [query, setQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('experts');
   const [selectedInspectorId, setSelectedInspectorId] = useState(initialSelectedInspectorId);
   const [message, setMessage] = useState('');
+  const [uploadedImage, setUploadedImage] = useState('');
+  const imageInputRef = useRef(null);
   const [notice, setNotice] = useState('');
   const [requestedInspectorIds, setRequestedInspectorIds] = useState(() => new Set());
   const [localServiceRequests, setLocalServiceRequests] = useState([]);
@@ -184,8 +236,14 @@ export default function InspectorMapSearch({
   const [reviewError, setReviewError] = useState('');
   const [submittedReviews, setSubmittedReviews] = useState({});
   const [serviceDateTime, setServiceDateTime] = useState('');
+  const [serviceLocation, setServiceLocation] = useState('');
   const [requestError, setRequestError] = useState('');
-  const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [submittingServiceIds, setSubmittingServiceIds] = useState(() => new Set());
+  const isSubmitting = submittingServiceIds.size > 0;
+  const [confirmedService, setConfirmedService] = useState(null);
+  const [activeBookings, setActiveBookings] = useState(() => (
+    readLocalStorage(SPECIALIST_BOOKINGS_STORAGE_KEY, [], Array.isArray)
+  ));
 
   const completedInspectorIds = useMemo(
     () => new Set(completedOrders
@@ -217,12 +275,12 @@ export default function InspectorMapSearch({
         };
       })
       .filter((inspector) => (
-        (activeFilter === 'all' || inspector.rating >= 4.8)
+        inspector.rating >= 4.8
         && (!searchTerm || [inspector.name, inspector.city, inspector.specialization]
           .some((value) => normalizeSearchText(value).includes(searchTerm)))
       ))
       .sort((first, second) => second.rating - first.rating || first.originalIndex - second.originalIndex);
-  }, [activeFilter, inspectors, query, submittedReviews]);
+  }, [inspectors, query, submittedReviews]);
 
   const selectedInspector = filteredInspectors.find((inspector) => inspector.id === selectedInspectorId);
   const serviceRequestHistory = useMemo(() => {
@@ -247,27 +305,55 @@ export default function InspectorMapSearch({
       })
       .sort((first, second) => new Date(second.requestedAt) - new Date(first.requestedAt));
   }, [cancelledRequests, inspectors, localServiceRequests, serviceOrders]);
+  const activeCalls = useMemo(() => {
+    const callsByKey = new Map();
+    for (const call of serviceRequestHistory) {
+      callsByKey.set(`${call.inspectorId}:${call.requestedAt}`, call);
+    }
+    for (const call of activeBookings) {
+      const key = `${call.inspectorId}:${call.requestedAt}`;
+      callsByKey.set(key, { ...callsByKey.get(key), ...call });
+    }
+    return [...callsByKey.values()]
+      .filter((call) => !['Completed', 'completed', 'Cancelled', 'cancelled'].includes(call.status))
+      .sort((first, second) => new Date(second.requestedAt) - new Date(first.requestedAt));
+  }, [activeBookings, serviceRequestHistory]);
+  const selectedServiceRequest = selectedInspector
+    ? serviceRequestHistory.find((order) => order.inspectorId === selectedInspector.id)
+      ?? activeBookings.find((order) => order.inspectorId === selectedInspector.id)
+    : null;
+  const mapInspectors = filteredInspectors.filter((inspector) => inspector.topRated);
   const hasRequestedService = selectedInspector && (
     requestedInspectorIds.has(selectedInspector.id)
     || serviceOrders.some((order) => order.inspectorId === selectedInspector.id)
     || completedOrders.some((order) => order.inspectorId === selectedInspector.id
       && (order.status === 'Completed' || order.status === 'completed'))
   );
-  const hasPreviouslyRequested = selectedInspector && (
-    requestedInspectorIds.has(selectedInspector.id)
-    || serviceOrders.some((order) => order.inspectorId === selectedInspector.id
-      && !cancelledRequests.some((cancelled) => (
-        cancelled.inspectorId === order.inspectorId && cancelled.requestedAt === order.requestedAt
-      )))
-  );
   const hasCompletedService = selectedInspector && hasRequestedService && completedInspectorIds.has(selectedInspector.id);
 
-  function handleSendRequest() {
-    if (!selectedInspector) return;
+  function hasRequestedServiceType(serviceId) {
+    if (!selectedInspector) return false;
+    const serviceName = serviceId === 'pre-purchase' ? copy.prePurchaseButton : copy.roadsideButton;
+    return [...serviceRequestHistory, ...activeBookings].some((order) => (
+      order.inspectorId === selectedInspector.id
+      && (order.serviceId === serviceId || order.service === serviceName)
+    ));
+  }
+
+  function handleSubmit(event, service) {
+    event.preventDefault();
+    if (!selectedInspector || submittingServiceIds.has(service.id)
+      || confirmedService?.id === service.id || hasRequestedServiceType(service.id)) return;
 
     const inspector = selectedInspector;
     const requestedAt = serviceDateTime;
     const messageText = message.trim();
+    const requestedLocation = serviceLocation.trim();
+    if (!uploadedImage) return;
+    if (!requestedLocation) {
+      setRequestError(copy.locationRequired);
+      return;
+    }
     if (!requestedAt || requestedAt <= minimumServiceDateTime) {
       setRequestError(copy.dateRequired);
       return;
@@ -278,29 +364,100 @@ export default function InspectorMapSearch({
     }
 
     const completeRequest = async () => {
-      setIsSendingRequest(true);
+      setSubmittingServiceIds((current) => new Set(current).add(service.id));
+      const confirmationTimer = window.setTimeout(() => {
+        const bookings = readLocalStorage(SPECIALIST_BOOKINGS_STORAGE_KEY, [], Array.isArray);
+        const booking = {
+          inspectorId: inspector.id,
+          inspectorName: inspector.name,
+          city: inspector.city,
+          location: requestedLocation,
+          requestedAt,
+          service: service.name,
+          serviceId: service.id,
+          message: messageText,
+          image: uploadedImage || undefined,
+          price: service.price,
+          status: 'holding',
+          createdAt: new Date().toISOString(),
+        };
+        const updatedBookings = [
+          ...bookings.filter((item) => (
+            item.inspectorId !== booking.inspectorId || item.requestedAt !== booking.requestedAt
+          )),
+          booking,
+        ];
+        writeLocalStorage(SPECIALIST_BOOKINGS_STORAGE_KEY, updatedBookings);
+        setActiveBookings(updatedBookings);
+        setSubmittingServiceIds((current) => {
+          const updated = new Set(current);
+          updated.delete(service.id);
+          return updated;
+        });
+        setConfirmedService({ id: service.id, price: service.price });
+      }, 15000);
+
       try {
-        const order = { inspectorId: inspector.id, requestedAt, status: 'Requested' };
+        const order = {
+          inspectorId: inspector.id,
+          requestedAt,
+          city: inspector.city,
+          location: requestedLocation,
+          service: service.name,
+          serviceId: service.id,
+          message: messageText,
+          image: uploadedImage || undefined,
+          price: service.price,
+          status: 'Requested',
+        };
         await onServiceRequest?.(order);
-        await onMessageSend?.({ inspectorId: inspector.id, message: messageText });
         setCancelledRequests((current) => current.filter((cancelled) => (
           cancelled.inspectorId !== order.inspectorId || cancelled.requestedAt !== order.requestedAt
         )));
         setLocalServiceRequests((current) => [...current, order]);
         setRequestedInspectorIds((current) => new Set(current).add(inspector.id));
         setServiceDateTime('');
+        setServiceLocation('');
         setMessage('');
         setRequestError('');
         setNotice('');
-        setSelectedInspectorId(null);
       } catch {
+        window.clearTimeout(confirmationTimer);
         setRequestError(copy.requestFailed);
-      } finally {
-        setIsSendingRequest(false);
+        setSubmittingServiceIds((current) => {
+          const updated = new Set(current);
+          updated.delete(service.id);
+          return updated;
+        });
       }
     };
 
     requireAuth(completeRequest);
+  }
+
+  function acceptCall(call) {
+    const registeredInspectorId = readLocalStorage(
+      'pirro-registered-inspector-id',
+      null,
+      (value) => typeof value === 'string' && value.trim().length > 0,
+    );
+    const isSpecialist = window.localStorage.getItem('isSpecialist') === 'true'
+      || Boolean(registeredInspectorId);
+    if (!isSpecialist) {
+      window.alert('მხოლოდ რეგისტრირებულ ოსტატებს შეუძლიათ შეკვეთის მიღება. გთხოვთ, გაიაროთ ექსპერტად რეგისტრაცია.');
+      return;
+    }
+
+    const acceptedCall = { ...call, status: 'Accepted' };
+    const bookings = readLocalStorage(SPECIALIST_BOOKINGS_STORAGE_KEY, [], Array.isArray);
+    const updatedBookings = [
+      ...bookings.filter((item) => (
+        item.inspectorId !== call.inspectorId || item.requestedAt !== call.requestedAt
+      )),
+      acceptedCall,
+    ];
+    writeLocalStorage(SPECIALIST_BOOKINGS_STORAGE_KEY, updatedBookings);
+    setActiveBookings(updatedBookings);
   }
 
   function submitReview(inspector) {
@@ -337,100 +494,112 @@ export default function InspectorMapSearch({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_0.9fr] lg:gap-8">
-          <div className="min-w-0">
-            <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-blue-300/35 bg-blue-500/5 p-1">
-              <button
-                aria-pressed={activeFilter === 'all'}
-                className={`rounded-xl px-3 py-2.5 text-xs font-semibold transition sm:text-sm ${activeFilter === 'all' ? 'bg-blue-600 text-white shadow' : 'opacity-75 hover:bg-blue-500/10'}`}
-                onClick={() => setActiveFilter('all')}
-                type="button"
-              >
-                {copy.allExperts}
-              </button>
-              <button
-                aria-pressed={activeFilter === 'top'}
-                className={`rounded-xl px-3 py-2.5 text-xs font-semibold transition sm:text-sm ${activeFilter === 'top' ? 'bg-blue-600 text-white shadow' : 'opacity-75 hover:bg-blue-500/10'}`}
-                onClick={() => setActiveFilter('top')}
-                type="button"
-              >
-                <span className="inline-flex items-center gap-1"><Star aria-hidden="true" fill="currentColor" size={13} />{copy.topExperts}</span>
-              </button>
-            </div>
+        <div aria-label="Specialist views" className="mb-6 grid grid-cols-2 gap-2 rounded-2xl border border-blue-300/35 bg-blue-500/5 p-1" role="tablist">
+          <button
+            aria-selected={activeTab === 'experts'}
+            className={`rounded-xl px-3 py-2.5 text-xs font-semibold transition sm:text-sm ${activeTab === 'experts' ? 'bg-blue-600 text-white shadow' : 'opacity-75 hover:bg-blue-500/10'}`}
+            onClick={() => setActiveTab('experts')}
+            role="tab"
+            type="button"
+          >
+            <span className="inline-flex items-center gap-1"><Star aria-hidden="true" fill="currentColor" size={13} />{copy.topExperts}</span>
+          </button>
+          <button
+            aria-selected={activeTab === 'calls'}
+            className={`rounded-xl px-3 py-2.5 text-xs font-semibold transition sm:text-sm ${activeTab === 'calls' ? 'bg-blue-600 text-white shadow' : 'opacity-75 hover:bg-blue-500/10'}`}
+            onClick={() => setActiveTab('calls')}
+            role="tab"
+            type="button"
+          >
+            {copy.activeCalls}
+          </button>
+        </div>
 
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide opacity-70" htmlFor="inspector-search">
-              {copy.search}
-            </label>
-            <div className={`flex items-center gap-3 rounded-2xl border px-4 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 ${isDark ? 'border-zinc-700 bg-zinc-950/50' : 'border-blue-200 bg-white/70'}`}>
-              <Search aria-hidden="true" className="shrink-0 opacity-55" size={19} />
-              <input
-                autoComplete="off"
-                className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none placeholder:opacity-50"
-                id="inspector-search"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={copy.placeholder}
-                type="search"
-                value={query}
-              />
-            </div>
-            <p aria-live="polite" className="mt-3 text-xs opacity-65">{copy.resultCount(filteredInspectors.length)}</p>
-            {notice && <p aria-live="polite" className="mt-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">{notice}</p>}
+        {activeTab === 'experts' && (
+          <>
+        <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+          <div className="min-w-0 space-y-6">
+            <section aria-labelledby="top-experts-title" className="space-y-4">
+              <h3 className="font-serif text-lg font-semibold" id="top-experts-title">
+                <span className="inline-flex items-center gap-2">
+                  <Star aria-hidden="true" fill="currentColor" size={18} />
+                  {copy.topExperts}
+                </span>
+              </h3>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide opacity-70" htmlFor="inspector-search">
+                {copy.search}
+              </label>
+              <div className={`flex items-center gap-3 rounded-2xl border px-4 transition focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 ${isDark ? 'border-zinc-700 bg-zinc-950/50' : 'border-blue-200 bg-white/70'}`}>
+                <Search aria-hidden="true" className="shrink-0 opacity-55" size={19} />
+                <input
+                  autoComplete="off"
+                  className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none placeholder:opacity-50"
+                  id="inspector-search"
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={copy.placeholder}
+                  type="search"
+                  value={query}
+                />
+              </div>
+              <p aria-live="polite" className="text-xs opacity-65">{copy.resultCount(filteredInspectors.length)}</p>
+              {notice && <p aria-live="polite" className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{notice}</p>}
 
-            <ul className="mt-3 grid max-h-[34rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-1">
-              {filteredInspectors.map((inspector) => (
-                <li key={inspector.id}>
-                  <button
-                    aria-label={`${copy.viewProfile}: ${inspector.name}`}
-                    aria-pressed={selectedInspectorId === inspector.id}
-                    className={`blue-glass-card flex w-full items-start gap-3 rounded-2xl p-4 text-left transition ${selectedInspectorId === inspector.id ? 'border-blue-500/70 bg-blue-100/70 ring-2 ring-blue-500/20 dark:border-blue-300/50 dark:bg-blue-400/10' : ''}`}
-                    onClick={() => {
-                      setSelectedInspectorId(inspector.id);
-                      setNotice('');
-                      setDraftRating(0);
-                      setDraftComment('');
-                      setReviewError('');
-                    }}
-                    type="button"
-                  >
-                    <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-700 dark:text-blue-300">
-                      <Wrench aria-hidden="true" size={17} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="truncate font-semibold">{inspector.name}</span>
-                        {inspector.topRated && (
+              <ul className="grid max-h-[34rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
+                {filteredInspectors.map((inspector) => (
+                  <li key={inspector.id}>
+                    <button
+                      aria-label={`${copy.viewProfile}: ${inspector.name}`}
+                      aria-pressed={selectedInspectorId === inspector.id}
+                      className={`blue-glass-card flex w-full items-start gap-3 rounded-2xl p-4 text-left transition ${selectedInspectorId === inspector.id ? 'border-blue-500/70 bg-blue-100/70 ring-2 ring-blue-500/20 dark:border-blue-300/50 dark:bg-blue-400/10' : ''}`}
+                      onClick={() => {
+                        setSelectedInspectorId(inspector.id);
+                        setConfirmedService(null);
+                        setNotice('');
+                        setDraftRating(0);
+                        setDraftComment('');
+                        setReviewError('');
+                      }}
+                      type="button"
+                    >
+                      <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                        <Wrench aria-hidden="true" size={17} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="truncate font-semibold">{inspector.name}</span>
                           <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-100/70 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-200">
                             <Star aria-hidden="true" fill="currentColor" size={11} />{copy.topRated}
                           </span>
-                        )}
+                        </span>
+                        <span className="mt-1 block text-sm opacity-75">{inspector.city}</span>
+                        <span className="mt-2 block text-xs text-blue-700 dark:text-blue-300">{inspector.specialization}</span>
+                        <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                          <Star aria-hidden="true" fill={inspector.rating > 0 ? 'currentColor' : 'none'} size={13} />
+                          {inspector.rating.toFixed(1)}
+                          <span className="font-normal opacity-70">({copy.reviews(inspector.reviewCount)})</span>
+                        </span>
                       </span>
-                      <span className="mt-1 block text-sm opacity-75">{inspector.city}</span>
-                      <span className="mt-2 block text-xs text-blue-700 dark:text-blue-300">{inspector.specialization}</span>
-                      <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                        <Star aria-hidden="true" fill={inspector.rating > 0 ? 'currentColor' : 'none'} size={13} />
-                        {inspector.rating.toFixed(1)}
-                        <span className="font-normal opacity-70">({copy.reviews(inspector.reviewCount)})</span>
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {filteredInspectors.length === 0 && (
-                <li className="rounded-2xl border border-dashed border-blue-300/60 px-5 py-8 text-center sm:col-span-2 lg:col-span-1">
-                  <p className="font-semibold">{copy.emptyTitle}</p>
-                  <p className="mt-1 text-sm opacity-70">{copy.emptyDescription}</p>
-                </li>
-              )}
-            </ul>
+                    </button>
+                  </li>
+                ))}
+                {filteredInspectors.length === 0 && (
+                  <li className="rounded-2xl border border-dashed border-blue-300/60 px-5 py-8 text-center sm:col-span-2">
+                    <p className="font-semibold">{copy.emptyTitle}</p>
+                    <p className="mt-1 text-sm opacity-70">{copy.emptyDescription}</p>
+                  </li>
+                )}
+              </ul>
+            </section>
           </div>
 
-          <div className="min-w-0">
-            <h3 className="mb-3 font-serif text-lg font-semibold">{copy.mapTitle}</h3>
+          <section aria-labelledby="expert-map-title" className="min-w-0 lg:sticky lg:top-24">
+            <h3 className="mb-3 font-serif text-lg font-semibold" id="expert-map-title">{copy.mapTitle}</h3>
             <GermanyMap
-              inspectors={filteredInspectors}
+              inspectors={mapInspectors}
               mapLabel={copy.mapTitle}
               onSelect={(inspectorId) => {
                 setSelectedInspectorId(inspectorId);
+                setConfirmedService(null);
                 setNotice('');
                 setDraftRating(0);
                 setDraftComment('');
@@ -438,7 +607,8 @@ export default function InspectorMapSearch({
               }}
               selectedId={selectedInspectorId}
             />
-          </div>
+          </section>
+
         </div>
         {serviceRequestHistory.length > 0 && (
             <div aria-live="polite" className="mt-6 border-t border-blue-300/25 pt-5">
@@ -452,6 +622,7 @@ export default function InspectorMapSearch({
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{order.inspectorName}</span>
                       <span className="mt-1 block text-sm opacity-70">{order.city}</span>
+                      {order.location && <span className="mt-1 block text-sm opacity-70">{copy.serviceLocation}: {order.location}</span>}
                       <span className="mt-2 block text-xs opacity-70">
                         {copy.appointment}: {new Date(order.requestedAt).toLocaleString(
                           language === 'GE' ? 'ka-GE' : language === 'DE' ? 'de-DE' : 'en-US',
@@ -466,6 +637,12 @@ export default function InspectorMapSearch({
                       <button
                         className="rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-500/10 dark:text-red-300"
                         onClick={() => {
+                          const bookings = readLocalStorage(SPECIALIST_BOOKINGS_STORAGE_KEY, [], Array.isArray);
+                          const updatedBookings = bookings.filter((item) => (
+                            item.inspectorId !== order.inspectorId || item.requestedAt !== order.requestedAt
+                          ));
+                          writeLocalStorage(SPECIALIST_BOOKINGS_STORAGE_KEY, updatedBookings);
+                          setActiveBookings(updatedBookings);
                           setCancelledRequests((current) => [...current, {
                             inspectorId: order.inspectorId,
                             requestedAt: order.requestedAt,
@@ -496,13 +673,76 @@ export default function InspectorMapSearch({
               </ul>
             </div>
           )}
+          </>
+        )}
+
+        {activeTab === 'calls' && (
+          <section aria-labelledby="active-calls-title" className="min-w-0">
+            <h3 className="mb-4 font-serif text-lg font-semibold" id="active-calls-title">{copy.activeCalls}</h3>
+            <div className="overflow-x-auto rounded-2xl border border-blue-300/30">
+              <table className="w-full min-w-[44rem] divide-y divide-blue-300/25 text-left text-sm">
+                <thead className="bg-blue-500/5 text-xs uppercase tracking-wide opacity-75">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold" scope="col">{copy.location}</th>
+                    <th className="px-4 py-3 font-semibold" scope="col">{copy.serviceRequired}</th>
+                    <th className="px-4 py-3 font-semibold" scope="col">{copy.image}</th>
+                    <th className="px-4 py-3 font-semibold" scope="col">{copy.status}</th>
+                    <th className="px-4 py-3 font-semibold" scope="col">{copy.action}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-300/20">
+                  {activeCalls.map((call) => (
+                    <tr className="align-middle" key={`${call.inspectorId}-${call.requestedAt}`}>
+                      <td className="px-4 py-3">{call.location ?? call.city ?? '—'}</td>
+                      <td className="max-w-xs truncate px-4 py-3">
+                        {call.service ?? call.message ?? inspectors.find((item) => item.id === call.inspectorId)?.specialization ?? '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {call.image ? (
+                          <img
+                            alt={copy.image}
+                            className="h-16 w-16 rounded-lg border border-blue-300/30 object-cover"
+                            src={call.image}
+                          />
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${call.status === 'holding' ? 'bg-amber-500/10 text-amber-800 dark:text-amber-200' : 'bg-blue-500/10 text-blue-800 dark:text-blue-200'}`}>
+                          {call.status === 'holding' ? copy.holdingStatus(call.price) : call.status === 'Accepted' ? copy.accepted : copy.pendingStatus}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {call.status === 'Accepted' ? (
+                          <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">{copy.accepted}</span>
+                        ) : (
+                          <button
+                            className="rounded-lg bg-[#d4af37] px-3 py-1.5 text-xs font-bold text-black transition hover:opacity-90"
+                            onClick={() => acceptCall(call)}
+                            type="button"
+                          >
+                            {copy.accept}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {activeCalls.length === 0 && (
+                    <tr>
+                      <td className="px-4 py-8 text-center opacity-70" colSpan={5}>{copy.emptyCalls}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </div>
 
       {selectedInspector && createPortal(
         <div
           className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 pt-16 backdrop-blur-sm sm:items-center sm:py-8"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSelectedInspectorId(null);
+            if (event.target === event.currentTarget && !isSubmitting) setSelectedInspectorId(null);
           }}
         >
           <div
@@ -514,6 +754,7 @@ export default function InspectorMapSearch({
             <button
               aria-label={copy.cancel}
               className="absolute right-4 top-4 rounded-full p-2 opacity-65 transition hover:bg-blue-500/10 hover:opacity-100"
+              disabled={isSubmitting}
               onClick={() => setSelectedInspectorId(null)}
               type="button"
             >
@@ -553,6 +794,20 @@ export default function InspectorMapSearch({
             </div>
 
             <div className="space-y-3 rounded-2xl border border-blue-300/30 bg-blue-500/5 p-4">
+              <label className="block text-xs font-semibold" htmlFor="inspector-service-location">{copy.serviceLocation}</label>
+              <input
+                autoComplete="address-level2"
+                className={`w-full rounded-xl border p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'border-zinc-700 bg-zinc-950/60 text-zinc-100' : 'border-blue-200 bg-white/70 text-zinc-900'}`}
+                id="inspector-service-location"
+                onChange={(event) => {
+                  setServiceLocation(event.target.value);
+                  setRequestError('');
+                }}
+                placeholder={copy.serviceLocation}
+                required
+                type="text"
+                value={serviceLocation}
+              />
               <label className="block text-xs font-semibold" htmlFor="inspector-service-time">{copy.serviceDateTime}</label>
               <input
                 className={`w-full rounded-xl border p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'border-zinc-700 bg-zinc-950/60 text-zinc-100' : 'border-blue-200 bg-white/70 text-zinc-900'}`}
@@ -579,16 +834,113 @@ export default function InspectorMapSearch({
                 rows={3}
                 value={message}
               />
+              <div className="space-y-2">
+                <input
+                  accept="image/*"
+                  className="hidden"
+                  id="inspector-image-input"
+                  ref={imageInputRef}
+                  tabIndex={-1}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) {
+                      setUploadedImage('');
+                      return;
+                    }
+
+                    setRequestError('');
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      if (typeof reader.result === 'string') setUploadedImage(reader.result);
+                    };
+                    reader.onerror = () => {
+                      console.error('Unable to read the selected image.', reader.error);
+                      setRequestError(copy.requestFailed);
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                  type="file"
+                />
+                <button
+                  aria-label={copy.uploadImage}
+                  className={`w-full rounded-xl border p-3 text-left text-sm transition hover:border-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${isDark ? 'border-zinc-700 bg-zinc-950/60 text-zinc-100' : 'border-blue-200 bg-white/70 text-zinc-900'}`}
+                  onClick={() => imageInputRef.current?.click()}
+                  type="button"
+                >
+                  {copy.uploadImage}
+                </button>
+                {uploadedImage && (
+                  <img
+                    alt="პრევიუ"
+                    className="h-32 w-32 rounded-lg border border-blue-300/30 object-cover"
+                    src={uploadedImage}
+                  />
+                )}
+              </div>
               {requestError && <p className="text-sm text-red-600 dark:text-red-300" role="alert">{requestError}</p>}
-              <button
-                aria-busy={isSendingRequest}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-amber-500 px-5 py-3 font-bold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSendingRequest || hasPreviouslyRequested}
-                onClick={handleSendRequest}
-                type="button"
-              >
-                {hasPreviouslyRequested ? copy.sentLabel : 'გაგზავნა'}
-              </button>
+              <div className="space-y-2">
+                <button
+                  aria-busy={submittingServiceIds.has('pre-purchase')}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-amber-500 px-5 py-3 font-bold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!uploadedImage || submittingServiceIds.has('pre-purchase')
+                    || confirmedService?.id === 'pre-purchase' || hasRequestedServiceType('pre-purchase')}
+                  onClick={(event) => handleSubmit(event, {
+                    id: 'pre-purchase',
+                    name: copy.prePurchaseButton,
+                    price: 100,
+                  })}
+                  type="button"
+                >
+                  {submittingServiceIds.has('pre-purchase') ? (
+                    <>
+                      <LoaderCircle aria-hidden="true" className="animate-spin" size={18} />
+                      <span>{copy.waitingConfirmation}</span>
+                    </>
+                  ) : hasRequestedServiceType('pre-purchase') ? copy.sentLabel : copy.prePurchaseButton}
+                </button>
+                <button
+                  aria-busy={submittingServiceIds.has('roadside')}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#d4af37] to-amber-500 px-5 py-3 font-bold text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!uploadedImage || submittingServiceIds.has('roadside')
+                    || confirmedService?.id === 'roadside' || hasRequestedServiceType('roadside')}
+                  onClick={(event) => handleSubmit(event, {
+                    id: 'roadside',
+                    name: copy.roadsideButton,
+                    price: 150,
+                  })}
+                  type="button"
+                >
+                  {submittingServiceIds.has('roadside') ? (
+                    <>
+                      <LoaderCircle aria-hidden="true" className="animate-spin" size={18} />
+                      <span>{copy.waitingConfirmation}</span>
+                    </>
+                  ) : hasRequestedServiceType('roadside') ? copy.sentLabel : copy.roadsideButton}
+                </button>
+              </div>
+              {selectedServiceRequest?.service && (
+                <p className="text-sm font-medium" role="status">
+                  {copy.requestedService} {selectedServiceRequest.service}
+                </p>
+              )}
+              {selectedServiceRequest?.location && (
+                <p className="text-sm font-medium">{copy.serviceLocation}: {selectedServiceRequest.location}</p>
+              )}
+              {confirmedService && (
+                <div
+                  aria-live="polite"
+                  className="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-800 dark:text-emerald-200"
+                  role="status"
+                >
+                  <p className="flex items-center gap-2 font-semibold">
+                    <Check aria-hidden="true" size={18} />
+                    <span>მოთხოვნა დადასტურებულია!</span>
+                  </p>
+                  <p className="text-sm">
+                    {copy.confirmedPayment(confirmedService.price)}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 border-t border-blue-300/25 pt-4">

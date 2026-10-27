@@ -13,7 +13,6 @@ import { readLocalStorage, writeLocalStorage } from './utils/localStorage';
 
 const INSPECTORS_STORAGE_KEY = 'pirro-inspectors';
 const SERVICE_ORDERS_STORAGE_KEY = 'pirro-service-orders';
-const INSPECTOR_MESSAGES_STORAGE_KEY = 'pirro-inspector-messages';
 const REGISTERED_INSPECTOR_ID_STORAGE_KEY = 'pirro-registered-inspector-id';
 const ACTIVE_PAGE_STORAGE_KEY = 'pirro-active-page';
 const CONTRACT_TAB_STORAGE_KEY = 'pirro-contract-tab';
@@ -35,7 +34,6 @@ export default function App({
   onBuyerServiceRequest,
   onInspectorServiceRequest,
   onInspectorServiceCancel,
-  onInspectorMessage,
   onInspectorReview,
 }) {
   const [currentPage, setCurrentPage] = useState(() => readLocalStorage(
@@ -59,11 +57,6 @@ export default function App({
     [],
     isArray,
   ));
-  const [inspectorMessages, setInspectorMessages] = useState(() => readLocalStorage(
-    INSPECTOR_MESSAGES_STORAGE_KEY,
-    [],
-    isArray,
-  ));
   const [registeredInspectorId, setRegisteredInspectorId] = useState(() => readLocalStorage(
     REGISTERED_INSPECTOR_ID_STORAGE_KEY,
     null,
@@ -74,7 +67,6 @@ export default function App({
 
   useEffect(() => writeLocalStorage(INSPECTORS_STORAGE_KEY, inspectors), [inspectors]);
   useEffect(() => writeLocalStorage(SERVICE_ORDERS_STORAGE_KEY, serviceOrders), [serviceOrders]);
-  useEffect(() => writeLocalStorage(INSPECTOR_MESSAGES_STORAGE_KEY, inspectorMessages), [inspectorMessages]);
   useEffect(() => writeLocalStorage(REGISTERED_INSPECTOR_ID_STORAGE_KEY, registeredInspectorId), [registeredInspectorId]);
   useEffect(() => writeLocalStorage(ACTIVE_PAGE_STORAGE_KEY, currentPage), [currentPage]);
   useEffect(() => writeLocalStorage(CONTRACT_TAB_STORAGE_KEY, contractTab), [contractTab]);
@@ -93,6 +85,11 @@ export default function App({
 
   function openInspectorRegistration() {
     setContractTab('inspector');
+    navigateTo('contract');
+  }
+
+  function openBuyerRegistration() {
+    setContractTab('buyer');
     navigateTo('contract');
   }
 
@@ -122,11 +119,6 @@ export default function App({
         || currentOrder.requestedAt !== order.requestedAt,
     ));
     return onInspectorServiceCancel?.(order);
-  }
-
-  function sendInspectorMessage(message) {
-    setInspectorMessages((currentMessages) => [...currentMessages, message]);
-    return onInspectorMessage?.(message);
   }
 
   return (
@@ -168,10 +160,9 @@ export default function App({
             completedOrders={completedOrders}
             inspectors={inspectors}
             initialSelectedInspectorId={showRegisteredInspectorOnHome ? registeredInspectorId : null}
+            onBuyerRegistrationClick={openBuyerRegistration}
             serviceOrders={serviceOrders}
-            onBuyerServiceRequest={onBuyerServiceRequest}
             onInspectorClick={openInspectorRegistration}
-            onInspectorMessage={sendInspectorMessage}
             onInspectorReview={onInspectorReview}
             onInspectorServiceRequest={requestInspectorService}
             onInspectorServiceCancel={cancelInspectorService}

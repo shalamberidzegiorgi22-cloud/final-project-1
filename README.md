@@ -1,16 +1,29 @@
-# React + Vite
+# PIRRO – Germany Used Bicycle Inspection & Mobile Diagnostics Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 1. პროექტის შესახებ (Project Overview)
+**PIRRO** არის ციფრული მარკეტპლეისი, რომელიც გერმანიის ბაზარზე (ბერლინი, მიუნხენი, ჰამბურგი, ფრანკფურტი) აკავშირებს მყიდველებს სერტიფიცირებულ მობილურ ექსპერტებთან. პლატფორმა უზრუნველყოფს ორ ძირითად სერვისს:
+* მეორადი მექანიკური ველოსიპედების ყიდვამდელ სრულ დიაგნოსტიკასა და შერჩევას.
+* გზაში მცირე მექანიკური ხარვეზების ოპერატიულ აღმოფხვრასა და მობილურ დახმარებას.
 
-Currently, two official plugins are available:
+## 2. ტექნოლოგიური სტეკი (Tech Stack)
+პროექტი აგებულია მოდერნული ვებ-ტექნოლოგიებით:
+* **Frontend:** React (Functional Components, Hooks: `useState`, `useEffect`, `useCallback`, `useMemo`), JSX.
+* **Build Tool:** Vite (სწრაფი ბილდისა და მოდულიანი განახლებისთვის).
+* **Styling:** Tailwind CSS, მორგებული CSS სტილები და მინისეფექტიანი (**Glassmorphism**) დიზაინი.
+* **Icons:** Lucide React.
+* **State & Persistence:** Context API (Language, Theme, Auth) და ბრაუზერის `LocalStorage` უსაფრთხოების `try...catch` მექანიზმებით.
+* **Version Control:** Git & GitHub.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 3. პროექტის ფაილების არქიტექტურა (Folder Structure)
+```text
+src/
+├── assets/          # გრაფიკული და ვიზუალური ფაილები (E-Bike.webp და სხვ.)
+├── components/      # მცირე რეუსებადი კომპონენტები (ჩატი, რუკა, ენისა და თემის ღილაკები)
+├── context/         # გლობალური კონტექსტები (LanguageContent, ThemeContent, Auth)
+├── data/            # დემო მონაცემები (demolnspectors.js - ექსპერტების ბაზა)
+├── i18n/            # მრავალენოვანი ლექსიკონები (translation.js - EN, DE, GE)
+├── pages/           # ძირითადი გვერდები (Home, Contract, About, Contact)
+├── utils/           # დამხმარე ფუნქციები (localStorage.js)
+├── App.jsx          # მთავარი აპლიკაციის კომპონენტი და როუტინგი
+├── main.css / index.css # ძირითადი სტილები და Tailwind კონფიგურაცია
+└── main.jsx         # აპლიკაციის შესასვლელი წერტილი და პროვაიდერები

@@ -1,4 +1,4 @@
-import { Award, ShieldCheck, Globe } from 'lucide-react';
+import { Award, CircleAlert, ShieldCheck, Globe } from 'lucide-react';
 import { useTheme } from '../../context/useTheme';
 import { useLanguage } from '../../context/useLanguage';
 import { PruffoLogo } from '../../components/PruffoLogo';
@@ -32,6 +32,12 @@ export default function About() {
 
         {/* Cards */}
         <div className="grid grid-cols-1 gap-4 pt-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
+          <div className="blue-glass-card space-y-4 rounded-2xl p-6 sm:p-8 about-card lg:row-span-2">
+            <CircleAlert aria-hidden="true" className="text-red-500" size={32} />
+            <h3 className="font-bold text-lg">{copy.safetyTitle}</h3>
+            <p className="text-sm leading-relaxed opacity-80">{copy.safetyDescription}</p>
+          </div>
+
           <div className="blue-glass-card space-y-3 rounded-2xl p-5 sm:p-6 about-card">
             <ShieldCheck className="text-[#d4af37]" size={28} />
             <h3 className="font-bold text-lg">{copy.expertsTitle}</h3>
@@ -40,8 +46,8 @@ export default function About() {
           
           <div className="blue-glass-card space-y-3 rounded-2xl p-5 sm:p-6 about-card">
             <Award className="text-[#d4af37]" size={28} />
-            <h3 className="font-bold text-lg">{copy.batteryTitle}</h3>
-            <p className="text-xs opacity-75">{copy.batteryDescription}</p>
+            <h3 className="font-bold text-lg">{copy.inspectionTitle}</h3>
+            <p className="text-xs opacity-75">{copy.inspectionDescription}</p>
           </div>
           
           <div className="blue-glass-card space-y-3 rounded-2xl p-5 sm:p-6 about-card">
