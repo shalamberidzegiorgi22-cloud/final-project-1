@@ -1,5 +1,5 @@
 import { Shield, Bike, ArrowRight } from 'lucide-react';
-import bicycleImg from '../../assets/E-Bike.webp';
+import bicycleImg from '../../assets/E-Bike .webp';
 import { useLanguage } from '../../context/useLanguage';
 import { PruffoLogo } from '../../components/PruffoLogo';
 import InspectorMapSearch from '../../components/InspectorMapSearch';
@@ -33,7 +33,7 @@ export default function Home({
         </div>
       </nav>
 
-      {/* Hero Section */}
+
       <main className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 pb-12 pt-8 sm:gap-10 sm:px-6 sm:pb-16 sm:pt-10 lg:grid-cols-12 lg:gap-12 lg:pb-20 lg:pt-12">
         
         <div className="lg:col-span-7 space-y-8">

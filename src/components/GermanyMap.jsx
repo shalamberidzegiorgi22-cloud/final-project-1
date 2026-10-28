@@ -217,7 +217,7 @@ export default function GermanyMap({
           const [x, y] = getMarkerPosition(inspector);
           const selected = selectedId === inspector.id;
           const hovered = hoveredId === inspector.id;
-          const markerColor = selected ? '#f59e0b' : '#60a5fa';
+          const markerColor = selected || inspector.featured ? '#f59e0b' : '#60a5fa';
 
           return (
             <g
@@ -260,7 +260,7 @@ export default function GermanyMap({
                 strokeWidth="1.2"
               />
               <circle cx="0" cy="-6" fill="#eff6ff" r="2.5" />
-              {inspector.topRated && (
+              {inspector.featured && (
                 <g transform="translate(7 -18)">
                   <circle fill="#fef3c7" r="5.5" stroke="#f59e0b" strokeWidth="1" />
                   <text

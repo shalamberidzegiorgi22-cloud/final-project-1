@@ -96,7 +96,7 @@ export default function Contract({
     }
 
     const inspector = {
-      id: `inspector-${Date.now()}`,
+      id: `inspector-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
       name: `${firstName} ${lastName}`,
       city,
       specialization,

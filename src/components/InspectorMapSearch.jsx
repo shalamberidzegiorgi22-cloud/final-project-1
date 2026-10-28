@@ -25,7 +25,7 @@ const labels = {
     mapTitle: 'Experts across Germany',
     demo: 'Demo profiles',
     activeCalls: 'Active Calls',
-    topExperts: 'Top experts',
+    topExperts: 'All specialists',
     location: 'Client location',
     serviceRequired: 'Service Required',
     image: 'Image',
@@ -85,7 +85,7 @@ const labels = {
     mapTitle: 'Experten in Deutschland',
     demo: 'Beispielprofile',
     activeCalls: 'Aktive Aufträge',
-    topExperts: 'Top-Experten',
+    topExperts: 'Alle Spezialisten',
     location: 'Kundenstandort',
     serviceRequired: 'Benötigte Leistung',
     image: 'Bild',
@@ -144,8 +144,8 @@ const labels = {
     resultCount: (count) => `${count} ${count === 1 ? 'ოსტატი მოიძებნა' : 'ოსტატი მოიძებნა'}`,
     mapTitle: 'ოსტატები გერმანიაში',
     demo: 'სადემო პროფილები',
-    activeCalls: 'აქტიური გამოძახებები',
-    topExperts: 'რჩეული / ტოპ მოხელეები',
+    activeCalls: 'გამოძახებები',
+    topExperts: 'ყველა სპეციალისტი',
     location: 'კლიენტის მისამართი',
     serviceRequired: 'მომსახურება',
     image: 'სურათი',
@@ -153,7 +153,7 @@ const labels = {
     action: 'მოქმედება',
     accept: 'მიღება',
     accepted: 'მიღებულია',
-    emptyCalls: 'აქტიური გამოძახებები ჯერ არ არის.',
+    emptyCalls: 'გამოძახებები ჯერ არ არის.',
     holdingStatus: (amount) => `ჰოლდინგში (€${amount})`,
     prePurchaseButton: 'ველოსიპედის ყიდვამდე შემოწმება — €100',
     roadsideButton: 'გზაში დახმარება და დიაგნოსტიკა — €150',
@@ -264,22 +264,27 @@ export default function InspectorMapSearch({
           ? ((baseRating * reviewTotal + additionalReviews.reduce((total, review) => total + review.rating, 0))
             / (reviewTotal + additionalReviews.length))
           : baseRating;
+        const featured = typeof inspector.featured === 'boolean'
+          ? inspector.featured
+          : typeof inspector.topRated === 'boolean'
+            ? inspector.topRated
+            : rating >= 4.8;
 
         return {
           ...inspector,
           rating,
           reviewCount: reviewTotal + additionalReviews.length,
-          topRated: rating >= 4.8,
+          featured,
+          topRated: featured,
           originalIndex,
           reviews,
         };
       })
-      .filter((inspector) => (
-        inspector.rating >= 4.8
-        && (!searchTerm || [inspector.name, inspector.city, inspector.specialization]
-          .some((value) => normalizeSearchText(value).includes(searchTerm)))
-      ))
-      .sort((first, second) => second.rating - first.rating || first.originalIndex - second.originalIndex);
+      .filter((inspector) => !searchTerm || [inspector.name, inspector.city, inspector.specialization]
+        .some((value) => normalizeSearchText(value).includes(searchTerm)))
+      .sort((first, second) => Number(second.featured) - Number(first.featured)
+        || (first.featured ? second.rating - first.rating : 0)
+        || first.originalIndex - second.originalIndex);
   }, [inspectors, query, submittedReviews]);
 
   const selectedInspector = filteredInspectors.find((inspector) => inspector.id === selectedInspectorId);
@@ -322,7 +327,14 @@ export default function InspectorMapSearch({
     ? serviceRequestHistory.find((order) => order.inspectorId === selectedInspector.id)
       ?? activeBookings.find((order) => order.inspectorId === selectedInspector.id)
     : null;
-  const mapInspectors = filteredInspectors.filter((inspector) => inspector.topRated);
+  const mapInspectors = filteredInspectors.filter((inspector) => (
+    inspector.featured
+    && (
+      (Number.isFinite(inspector.coords?.top) && Number.isFinite(inspector.coords?.left))
+      || (Number.isFinite(inspector.longitude) && Number.isFinite(inspector.latitude))
+      || (Number.isFinite(Number(inspector.x)) && Number.isFinite(Number(inspector.y)))
+    )
+  ));
   const hasRequestedService = selectedInspector && (
     requestedInspectorIds.has(selectedInspector.id)
     || serviceOrders.some((order) => order.inspectorId === selectedInspector.id)
@@ -567,9 +579,11 @@ export default function InspectorMapSearch({
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="truncate font-semibold">{inspector.name}</span>
-                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-100/70 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-200">
-                            <Star aria-hidden="true" fill="currentColor" size={11} />{copy.topRated}
-                          </span>
+                          {inspector.featured && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-100/70 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-200">
+                              <Star aria-hidden="true" fill="currentColor" size={11} />{copy.topRated}
+                            </span>
+                          )}
                         </span>
                         <span className="mt-1 block text-sm opacity-75">{inspector.city}</span>
                         <span className="mt-2 block text-xs text-blue-700 dark:text-blue-300">{inspector.specialization}</span>
